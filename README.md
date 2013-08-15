@@ -9,7 +9,7 @@ Microsoft .NET 4.0 or greater is required for this application.
 To compile, open the pa-test-endpoint.sln file in Visual Studio and build the solution under the Release configuration.
 
 To run, run endpoint.exe from a command prompt. Running endpoint.exe will listen on localhost:8080 by default. You can specify other hosts and 
-ports to listen on. Running "endpoint /p:8081 /h:127.0.0.2" will cause the endpoint to listen on 127.0.0.2:8081.
+ports to listen on. Running `endpoint /p:8081 /h:127.0.0.2` will cause the endpoint to listen on 127.0.0.2:8081.
 
 # Argument Reference
 
