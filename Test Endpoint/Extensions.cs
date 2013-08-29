@@ -18,7 +18,8 @@ namespace Test_Endpoint
     {
         public static string GetValue(this IEnumerable<KeyValuePair<string, string>> list, string key)
         {
-            return list.SingleOrDefault(x => x.Key.ToLower() == key.ToLower()).Value;
+            var single = list.SingleOrDefault(x => x.Key.ToLower() == key.ToLower());
+            return single.Equals(default(KeyValuePair<string, string>)) ? "" : single.Value;
         }
     }
 }
