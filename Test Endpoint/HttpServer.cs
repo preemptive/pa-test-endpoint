@@ -83,7 +83,7 @@ namespace Test_Endpoint
                     {
                         return;
                     }
- 
+
                     request.Url = "/";
                     Func<HttpRequest, int> tmp;
 
@@ -91,26 +91,27 @@ namespace Test_Endpoint
                     {
                         throw new ApplicationException("Couldn't find handler for URL: " + request.Url);
                     }
-
                     if (tmp(request) != 500)
                     {
                         writer.WriteLine("HTTP/1.1 204 No Content");
-                        writer.WriteLine("");
-                        writer.Flush();
                     }
                     else
                     {
                         writer.WriteLine("HTTP/1.1 500 Internal Server Error");
-                        writer.WriteLine("");
-                        writer.Flush();
                     }
+                    writer.WriteLine("Connection: close");
+                    writer.WriteLine("");
+                    writer.Flush();
 
                     writer.Close();
                     reader.Close();
                     stream.Close();
                 }
             }
-            catch {}
+            catch
+            {
+                
+            }
             finally
             {
                 client.Close();
@@ -130,19 +131,22 @@ namespace Test_Endpoint
             var request = new HttpRequest { Url = Uri.UnescapeDataString(parts[1]), Headers = GetHeaders(reader) };
             //parts[2] should be HTTP/1.1
 
-            int length = int.Parse(request.Headers.GetValue("content-length"));
+            int length;
+            bool hasContent = int.TryParse(request.Headers.GetValue("content-length"), out length);
+
             var expect = request.Headers.GetValue("expect");
 
-            if (expect != null && expect.ToLower() == "100-continue")
+            if (!string.IsNullOrEmpty(expect) && expect.ToLower() == "100-continue")
             {
                 writer.WriteLine("HTTP/1.1 100 Continue");
+                writer.WriteLine("Connection: close");
+                writer.WriteLine("");
+                writer.Flush();
             }
 
-            writer.WriteLine("Connection: close");
-            writer.WriteLine("");
-            writer.Flush();
 
-            request.Data = GetContent(reader, length);
+
+            request.Data = hasContent ? GetContent(reader, length) : "";
 
             var sb = new StringBuilder();
             sb.Append(line).Append(Environment.NewLine);
