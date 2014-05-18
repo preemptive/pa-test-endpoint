@@ -9,6 +9,7 @@
 // IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
 // PARTICULAR PURPOSE.
 
+using Nito.AsyncEx;
 using System;
 using System.Linq;
 
@@ -18,16 +19,22 @@ namespace Test_Endpoint
     {
         private const int minPort = 0;
         private const int maxPort = 65535;
+
         public static void Main(string[] args)
+        {
+            //required to make async work from a console app
+            AsyncContext.Run(() => mainAsync(args));
+        }
+
+        private static void mainAsync(string[] args)
         {
             if (args.Any(x => x == "/?"))
             {
                 Console.WriteLine("Starts up a test endpoint for debugging. Defaults to localhost:8080.");
                 Console.WriteLine();
-                Console.WriteLine("ENDPOINT [/p:portnum] [/h:hostname] [/f]");
+                Console.WriteLine("ENDPOINT [/p:portnum] [/f]");
                 Console.WriteLine();
-                Console.WriteLine("/h:hostname \t Specifies the hostname for the endpoint to use.");
-                Console.WriteLine("/p:portnum  \t Specifies the port number for the endpoint to use.");
+                Console.WriteLine("/p:portnum  \t Specifies the port number to use.");
                 Console.WriteLine("/f          \t Causes the endpoint to always return the 500 network response code.");
                 
                 return;
@@ -44,11 +51,20 @@ namespace Test_Endpoint
                 }
             }
             
-            string host = args.Any(x => x.StartsWith("/h:")) ? args.First(x => x.StartsWith("/h:")).Split(':')[1] : "localhost";
             bool fail = args.Contains("/f");
 
-            var ss = new SimpleServer(host, port, fail);
-            Console.WriteLine("Listening on {0}", ss.EndPoint);
+
+            try
+            {
+                new SimpleServer(port, fail).Start();
+            }
+            catch (Exception e)
+            {
+                Console.Error.WriteLine("Unable to start server. (Is the port in use?)");
+                Console.Error.WriteLine(e);
+                Environment.Exit(1);
+            }
+            Console.WriteLine("Listening on port {0}", port);
         }
     }
 }
