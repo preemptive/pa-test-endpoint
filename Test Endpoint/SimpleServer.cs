@@ -108,6 +108,12 @@ namespace Test_Endpoint
         {
             string id = findId(body);
             var filename = string.Format("{0}\\{1}.txt", Subdir, id);
+            int dupCount = 0;
+            while (File.Exists(filename))
+            {
+                Console.Error.WriteLineAsync(string.Format("Warning: file already exists with id: {0}", id));
+                filename = string.Format("{0}\\{1}.{2}.txt", Subdir, id, ++dupCount);
+            }
             using (var writer = new StreamWriter(filename))
             {
                 await writer.WriteLineAsync(string.Format("{0} {1} HTTP/{2}", request.HttpMethod, request.RawUrl, request.ProtocolVersion));
