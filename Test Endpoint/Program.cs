@@ -19,7 +19,7 @@ namespace Test_Endpoint
     {
         private const int minPort = 0;
         private const int maxPort = 65535;
-        private const int defaultListeners = 4;
+        private const int defaultListenersPerCPU = 4;
 
         public static void Main(string[] args)
         {
@@ -36,7 +36,7 @@ namespace Test_Endpoint
                 Console.WriteLine("ENDPOINT [/p:portnum] [/l:listeners] [/f]");
                 Console.WriteLine();
                 Console.WriteLine("/p:portnum  \t Specifies the port number to use.");
-                Console.WriteLine("/l:listeners\t Specifies the number of connection listeners (default {0}), per CPU", defaultListeners);
+                Console.WriteLine("/l:listeners\t Specifies the number of connection listeners (default {0} per CPU)", defaultListenersPerCPU);
                 Console.WriteLine("/f          \t Causes the endpoint to always return the 500 network response code.");
                 
                 return;
@@ -53,7 +53,7 @@ namespace Test_Endpoint
                 }
             }
 
-            int listeners = defaultListeners;
+            int listeners = defaultListenersPerCPU * Environment.ProcessorCount;
             if (args.Any(x => x.StartsWith("/l:")))
             {
                 if (!int.TryParse(args.First(x => x.StartsWith("/l:")).Split(':')[1], out listeners) || listeners < 1)

@@ -28,12 +28,12 @@ namespace Test_Endpoint
 
         private HttpListener Listener = new HttpListener();
         private bool AlwaysFail;
-        private int ListenersPerCPU;
+        private int ListenerCount;
 
-        public SimpleServer(int port, int listenersPerCPU, bool alwaysFail)
+        public SimpleServer(int port, int listenerCount, bool alwaysFail)
         {
             AlwaysFail = alwaysFail;
-            ListenersPerCPU = listenersPerCPU;
+            ListenerCount = listenerCount;
 
             Listener.Prefixes.Add(string.Format("http://+:{0}/", port));
 
@@ -44,8 +44,7 @@ namespace Test_Endpoint
         {
             Listener.Start();
 
-            var concurrentListeners = ListenersPerCPU * Environment.ProcessorCount;
-            var semaphore = new Semaphore(concurrentListeners, concurrentListeners);
+            var semaphore = new Semaphore(ListenerCount, ListenerCount);
             while (true)
             {
                 semaphore.WaitOne();
