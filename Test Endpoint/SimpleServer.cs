@@ -130,7 +130,7 @@ namespace Test_Endpoint
                 await writer.WriteLineAsync(body.TrimEnd(new char[] { '\n' }));
             }
 
-            Console.WriteLine(string.Format("Recieved message: {0}", id));
+            Console.WriteLine(string.Format("Received batch / envelope: {0}", id));
 
             if (id == null)
             {
