@@ -24,15 +24,16 @@ namespace Test_Endpoint
 {
     public class SimpleServer
     {
-        private const int ConcurrentListenersPerCPU = 4;
         private string Subdir = string.Format("{0}\\{1}", AppDomain.CurrentDomain.BaseDirectory, "received");
 
         private HttpListener Listener = new HttpListener();
         private bool AlwaysFail;
+        private int ListenersPerCPU;
 
-        public SimpleServer(int port, bool alwaysFail)
+        public SimpleServer(int port, int listenersPerCPU, bool alwaysFail)
         {
             AlwaysFail = alwaysFail;
+            ListenersPerCPU = listenersPerCPU;
 
             Listener.Prefixes.Add(string.Format("http://+:{0}/", port));
 
@@ -43,7 +44,7 @@ namespace Test_Endpoint
         {
             Listener.Start();
 
-            var concurrentListeners = ConcurrentListenersPerCPU * Environment.ProcessorCount;
+            var concurrentListeners = ListenersPerCPU * Environment.ProcessorCount;
             var semaphore = new Semaphore(concurrentListeners, concurrentListeners);
             while (true)
             {
@@ -124,11 +125,11 @@ namespace Test_Endpoint
                 await writer.WriteLineAsync(body.TrimEnd(new char[] { '\n' }));
             }
 
-            Console.WriteLine(string.Format("Recieved message {0}", id));
+            Console.WriteLine(string.Format("Recieved message: {0}", id));
 
             if (id == null)
             {
-                return "Unable to find message ID";
+                return "Unable to find message ID; file will be named \".txt\"";
             }
             else
             {
