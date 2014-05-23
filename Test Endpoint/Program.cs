@@ -45,8 +45,8 @@ namespace Test_Endpoint
                 argCount++;
                 if (!int.TryParse(args.First(x => x.StartsWith("/p:")).Split(':')[1], out port) || port < minPort || port > maxPort)
                 {
-                    Console.WriteLine("Invalid port specified.");
-                    return;
+                    Console.Error.WriteLine("Invalid port specified.");
+                    Environment.Exit(1);
                 }
             }
 
@@ -56,8 +56,8 @@ namespace Test_Endpoint
                 argCount++;
                 if (!int.TryParse(args.First(x => x.StartsWith("/l:")).Split(':')[1], out listeners) || listeners < 1)
                 {
-                    Console.WriteLine("Invalid number of listeners specified.");
-                    return;
+                    Console.Error.WriteLine("Invalid number of listeners specified.");
+                    Environment.Exit(1);
                 }
             }
 
