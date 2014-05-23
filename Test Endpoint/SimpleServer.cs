@@ -27,15 +27,18 @@ namespace Test_Endpoint
         private string Subdir = string.Format("{0}\\{1}", AppDomain.CurrentDomain.BaseDirectory, "received");
 
         private HttpListener Listener = new HttpListener();
-        private bool AlwaysFail;
         private int ListenerCount;
 
-        public SimpleServer(int port, int listenerCount, bool alwaysFail)
-        {
-            AlwaysFail = alwaysFail;
-            ListenerCount = listenerCount;
+        private bool AlwaysFail;
+        private bool PerfMode;
 
+        public SimpleServer(int port, int listenerCount, bool alwaysFail, bool perfMode)
+        {
+            ListenerCount = listenerCount;
             Listener.Prefixes.Add(string.Format("http://+:{0}/", port));
+
+            AlwaysFail = alwaysFail;
+            PerfMode = perfMode;
 
             Directory.CreateDirectory(Subdir);
         }
@@ -105,14 +108,30 @@ namespace Test_Endpoint
 
         private async Task<string> logRequest(HttpListenerRequest request, String body)
         {
-            string id = findId(body);
-            var filename = string.Format("{0}\\{1}.txt", Subdir, id);
-            int dupCount = 0;
-            while (File.Exists(filename))
+            string subdirToUse = Subdir;
+            string id;
+            if (PerfMode)
             {
-                Console.Error.WriteLineAsync(string.Format("Warning: file already exists with id: {0}", id));
-                filename = string.Format("{0}\\{1}.{2}.txt", Subdir, id, ++dupCount);
+                id = Guid.NewGuid().ToString();
+                subdirToUse = string.Format("{0}\\{1}", subdirToUse, id.Substring(0, 3));
+                Directory.CreateDirectory(subdirToUse);
             }
+            else
+            {
+                id = findId(body);
+            }
+            
+            var filename = string.Format("{0}\\{1}.txt", subdirToUse, id);
+            if (!PerfMode)
+            {
+                int dupCount = 0;
+                while (File.Exists(filename))
+                {
+                    Console.Error.WriteLineAsync(string.Format("Warning: file already exists with id: {0}", id));
+                    filename = string.Format("{0}\\{1}.{2}.txt", subdirToUse, id, ++dupCount);
+                }
+            }
+
             using (var writer = new StreamWriter(filename))
             {
                 await writer.WriteLineAsync(string.Format("{0} {1} HTTP/{2}", request.HttpMethod, request.RawUrl, request.ProtocolVersion));

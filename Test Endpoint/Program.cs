@@ -31,21 +31,18 @@ namespace Test_Endpoint
         {
             if (args.Any(x => x == "/?"))
             {
-                Console.WriteLine("Starts up a test endpoint for debugging. Defaults to localhost:8080.");
+                Console.WriteLine("Starts up a test endpoint for debugging. Defaults to port 8080.");
                 Console.WriteLine();
-                Console.WriteLine("ENDPOINT [/p:portnum] [/l:listeners] [/f]");
-                Console.WriteLine();
-                Console.WriteLine("/p:portnum  \t Specifies the port number to use.");
-                Console.WriteLine("/l:listeners\t Specifies the number of connection listeners (default {0} per CPU)", defaultListenersPerCPU);
-                Console.WriteLine("/f          \t Causes the endpoint to always return the 500 network response code.");
-                
+                printArgs();
                 return;
             }
 
-            int port = 8080;
+            int argCount = 0;
 
+            int port = 8080;
             if (args.Any(x => x.StartsWith("/p:")))
             {
+                argCount++;
                 if (!int.TryParse(args.First(x => x.StartsWith("/p:")).Split(':')[1], out port) || port < minPort || port > maxPort)
                 {
                     Console.WriteLine("Invalid port specified.");
@@ -56,6 +53,7 @@ namespace Test_Endpoint
             int listeners = defaultListenersPerCPU * Environment.ProcessorCount;
             if (args.Any(x => x.StartsWith("/l:")))
             {
+                argCount++;
                 if (!int.TryParse(args.First(x => x.StartsWith("/l:")).Split(':')[1], out listeners) || listeners < 1)
                 {
                     Console.WriteLine("Invalid number of listeners specified.");
@@ -64,10 +62,29 @@ namespace Test_Endpoint
             }
 
             bool fail = args.Contains("/f");
+            if (fail)
+            {
+                argCount++;
+            }
+
+            bool perf = args.Contains("/perf");
+            if (perf)
+            {
+                argCount++;
+            }
+
+            if (args.Length != argCount)
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("ERROR: arguments not understood");
+                Console.Error.WriteLine();
+                printArgs();
+                Environment.Exit(1);
+            }
 
             try
             {
-                new SimpleServer(port, listeners, fail).Start();
+                new SimpleServer(port, listeners, fail, perf).Start();
             }
             catch (Exception e)
             {
@@ -76,6 +93,15 @@ namespace Test_Endpoint
                 Environment.Exit(1);
             }
             Console.WriteLine("Listening on port {0}", port);
+        }
+
+        private static void printArgs()
+        {
+            Console.WriteLine("ENDPOINT [/p:portnum] [/l:listeners] [/f]");
+            Console.WriteLine();
+            Console.WriteLine("/p:portnum  \t Specifies the port number to use.");
+            Console.WriteLine("/l:listeners\t Specifies the number of connection listeners (default {0} per CPU)", defaultListenersPerCPU);
+            Console.WriteLine("/f          \t Causes the endpoint to always return the 500 network response code.");
         }
     }
 }
