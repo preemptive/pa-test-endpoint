@@ -9,8 +9,10 @@
 // IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
 // PARTICULAR PURPOSE.
 
+using Mono.Options;
 using Nito.AsyncEx;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace Test_Endpoint
@@ -19,89 +21,90 @@ namespace Test_Endpoint
     {
         private const int minPort = 0;
         private const int maxPort = 65535;
+        private const int defaultPort = 8080;
         private const int defaultListenersPerCPU = 4;
 
         public static void Main(string[] args)
         {
+            int port = defaultPort;
+            int listeners = defaultListenersPerCPU * Environment.ProcessorCount; ;
+            bool fail = false;
+            bool perf = false;
+
+            OptionSet options = new OptionSet()
+            {
+                { "h|?", v => dieUsage(0) },
+                { "p=", portString => port = parsePort(portString) },
+                { "l=", listenersString => listeners = parseListeners(listenersString) },
+                { "f", flag => fail = (flag != null) },
+                { "perf", flag => perf = (flag != null) },
+            };
+
+            List<string> extraArgs = options.Parse(args);
+            if (extraArgs.Count != 0)
+            {
+                dieUsage(1);
+            }
+
             //required to make async work from a console app
-            AsyncContext.Run(() => mainAsync(args));
+            AsyncContext.Run(() => mainAsync(port, listeners, fail, perf));
         }
 
-        private static void mainAsync(string[] args)
+        private static void dieUsage(int exitCode)
         {
-            if (args.Any(x => x == "/?"))
+            var stream = Console.Out;
+            if (exitCode != 0)
             {
-                Console.WriteLine("Starts up a test endpoint for debugging. Defaults to port 8080.");
-                Console.WriteLine();
-                printArgs();
-                return;
+                stream = Console.Error;
             }
+            
+            stream.WriteLine("USAGE:");
+            stream.WriteLine("endpoint.exe [/h] [/p:portnum] [/l:listeners] [/f]");
+            stream.WriteLine();
+            stream.WriteLine("/h          \t Prints this message.");
+            stream.WriteLine("/p:portnum  \t Specifies the port number to use (default {0}).", defaultPort);
+            stream.WriteLine("/l:listeners\t Specifies the number of connection listeners (default {0} per CPU)", defaultListenersPerCPU);
+            stream.WriteLine("/f          \t Causes the endpoint to always return the 500 network response code.");
 
-            int argCount = 0;
+            System.Environment.Exit(exitCode);
+        }
 
-            int port = 8080;
-            if (args.Any(x => x.StartsWith("/p:")))
+        static int parsePort(string portString)
+        {
+            int port = -1;
+            if (!int.TryParse(portString, out port) || port < minPort || port > maxPort)
             {
-                argCount++;
-                if (!int.TryParse(args.First(x => x.StartsWith("/p:")).Split(':')[1], out port) || port < minPort || port > maxPort)
-                {
-                    Console.Error.WriteLine("Invalid port specified.");
-                    Environment.Exit(1);
-                }
+                Console.WriteLine("Invalid port specified.");
+                System.Environment.Exit(1);
             }
+            return port;
+        }
 
-            int listeners = defaultListenersPerCPU * Environment.ProcessorCount;
-            if (args.Any(x => x.StartsWith("/l:")))
+        static int parseListeners(string listenersString)
+        {
+            int listeners = -1;
+            if (!int.TryParse(listenersString, out listeners) || listeners < 1)
             {
-                argCount++;
-                if (!int.TryParse(args.First(x => x.StartsWith("/l:")).Split(':')[1], out listeners) || listeners < 1)
-                {
-                    Console.Error.WriteLine("Invalid number of listeners specified.");
-                    Environment.Exit(1);
-                }
+                Console.WriteLine("Invalid number of listeners specified.");
+                System.Environment.Exit(1);
             }
+            return listeners;
+        }
 
-            bool fail = args.Contains("/f");
-            if (fail)
-            {
-                argCount++;
-            }
-
-            bool perf = args.Contains("/perf");
-            if (perf)
-            {
-                argCount++;
-            }
-
-            if (args.Length != argCount)
-            {
-                Console.Error.WriteLine();
-                Console.Error.WriteLine("ERROR: arguments not understood");
-                Console.Error.WriteLine();
-                printArgs();
-                Environment.Exit(1);
-            }
-
+        private async static void mainAsync(int port, int listeners, bool fail, bool perf)
+        {
             try
             {
-                new SimpleServer(port, listeners, fail, perf).Start();
+                //have to await so we can catch port-binding exceptions
+                await new SimpleServer(port, listeners, fail, perf).Start();
             }
             catch (Exception e)
             {
-                Console.Error.WriteLine("Unable to start server. (Is the port in use?)");
                 Console.Error.WriteLine(e);
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Unable to start server. Is the port in use?");
                 Environment.Exit(1);
             }
-            Console.WriteLine("Listening on port {0}", port);
-        }
-
-        private static void printArgs()
-        {
-            Console.WriteLine("ENDPOINT [/p:portnum] [/l:listeners] [/f]");
-            Console.WriteLine();
-            Console.WriteLine("/p:portnum  \t Specifies the port number to use.");
-            Console.WriteLine("/l:listeners\t Specifies the number of connection listeners (default {0} per CPU)", defaultListenersPerCPU);
-            Console.WriteLine("/f          \t Causes the endpoint to always return the 500 network response code.");
         }
     }
 }

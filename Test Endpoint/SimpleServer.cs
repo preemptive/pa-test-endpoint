@@ -24,9 +24,10 @@ namespace Test_Endpoint
 {
     public class SimpleServer
     {
-        private string Subdir = string.Format("{0}\\{1}", AppDomain.CurrentDomain.BaseDirectory, "received");
+        private string Subdir = "received";
 
         private HttpListener Listener = new HttpListener();
+        private int Port;
         private int ListenerCount;
 
         private bool AlwaysFail;
@@ -34,8 +35,9 @@ namespace Test_Endpoint
 
         public SimpleServer(int port, int listenerCount, bool alwaysFail, bool perfMode)
         {
+            Port = port;
             ListenerCount = listenerCount;
-            Listener.Prefixes.Add(string.Format("http://+:{0}/", port));
+            Listener.Prefixes.Add(string.Format("http://+:{0}/", Port));
 
             AlwaysFail = alwaysFail;
             PerfMode = perfMode;
@@ -43,9 +45,10 @@ namespace Test_Endpoint
             Directory.CreateDirectory(Subdir);
         }
 
-        public async void Start()
+        public async Task Start()
         {
             Listener.Start();
+            Console.WriteLine("Listening on port {0}", Port);
 
             var semaphore = new Semaphore(ListenerCount, ListenerCount);
             while (true)
