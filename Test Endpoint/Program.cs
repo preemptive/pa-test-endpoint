@@ -9,11 +9,10 @@
 // IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
 // PARTICULAR PURPOSE.
 
+using System.Threading.Tasks;
 using Mono.Options;
-using Nito.AsyncEx;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace Test_Endpoint
 {
@@ -27,7 +26,7 @@ namespace Test_Endpoint
         public static void Main(string[] args)
         {
             int port = defaultPort;
-            int listeners = defaultListenersPerCPU * Environment.ProcessorCount; ;
+            int listeners = defaultListenersPerCPU * Environment.ProcessorCount;
             bool fail = false;
             bool perf = false;
 
@@ -47,7 +46,7 @@ namespace Test_Endpoint
             }
 
             //required to make async work from a console app
-            AsyncContext.Run(() => mainAsync(port, listeners, fail, perf));
+            Task.WaitAll(mainAsync(port, listeners, fail, perf));
         }
 
         private static void dieUsage(int exitCode)
@@ -91,7 +90,7 @@ namespace Test_Endpoint
             return listeners;
         }
 
-        private async static void mainAsync(int port, int listeners, bool fail, bool perf)
+        private async static Task<string> mainAsync(int port, int listeners, bool fail, bool perf)
         {
             try
             {
@@ -105,6 +104,8 @@ namespace Test_Endpoint
                 Console.Error.WriteLine("Unable to start server. Is the port in use?");
                 Environment.Exit(1);
             }
+
+            return "finished";
         }
     }
 }
