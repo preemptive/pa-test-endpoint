@@ -17,6 +17,7 @@ using System.Xml;
 using System.Net;
 using System.Threading.Tasks;
 
+#pragma warning disable 4014
 namespace Test_Endpoint
 {
     public class SimpleServer
