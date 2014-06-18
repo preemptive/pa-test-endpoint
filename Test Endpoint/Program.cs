@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2013 PreEmptive Solutions; All Right Reserved, http://www.preemptive.com/
+﻿// Copyright (c) 2014 PreEmptive Solutions; All Right Reserved, http://www.preemptive.com/
 //
 // This source is subject to the Microsoft Public License (MS-PL).
 // Please see the License.txt file for more information.
@@ -18,23 +18,23 @@ namespace Test_Endpoint
 {
     public class Program
     {
-        private const int minPort = 0;
-        private const int maxPort = 65535;
-        private const int defaultPort = 8080;
-        private const int defaultListenersPerCPU = 4;
+        private const int MIN_PORT = 0;
+        private const int MAX_PORT = 65535;
+        private const int DEFAULT_PORT = 8080;
+        private const int DEFAULT_LISTENERS_PER_CPU = 4;
 
         public static void Main(string[] args)
         {
-            int port = defaultPort;
-            int listeners = defaultListenersPerCPU * Environment.ProcessorCount;
+            int port = DEFAULT_PORT;
+            int listeners = DEFAULT_LISTENERS_PER_CPU * Environment.ProcessorCount;
             bool fail = false;
             bool perf = false;
 
-            OptionSet options = new OptionSet()
+            var options = new OptionSet()
             {
-                { "h|?", v => dieUsage(0) },
-                { "p=", portString => port = parsePort(portString) },
-                { "l=", listenersString => listeners = parseListeners(listenersString) },
+                { "h|?", v => DieUsage(0) },
+                { "p=", portString => port = ParsePort(portString) },
+                { "l=", listenersString => listeners = ParseListeners(listenersString) },
                 { "f", flag => fail = (flag != null) },
                 { "perf", flag => perf = (flag != null) },
             };
@@ -42,14 +42,14 @@ namespace Test_Endpoint
             List<string> extraArgs = options.Parse(args);
             if (extraArgs.Count != 0)
             {
-                dieUsage(1);
+                DieUsage(1);
             }
 
             //required to make async work from a console app
-            Task.WaitAll(mainAsync(port, listeners, fail, perf));
+            Task.WaitAll(MainAsync(port, listeners, fail, perf));
         }
 
-        private static void dieUsage(int exitCode)
+        private static void DieUsage(int exitCode)
         {
             var stream = Console.Out;
             if (exitCode != 0)
@@ -61,36 +61,38 @@ namespace Test_Endpoint
             stream.WriteLine("endpoint.exe [/h] [/p:portnum] [/l:listeners] [/f]");
             stream.WriteLine();
             stream.WriteLine("/h          \t Prints this message.");
-            stream.WriteLine("/p:portnum  \t Specifies the port number to use (default {0}).", defaultPort);
-            stream.WriteLine("/l:listeners\t Specifies the number of connection listeners (default {0} per CPU)", defaultListenersPerCPU);
+            stream.WriteLine("/p:portnum  \t Specifies the port number to use (default {0}).", DEFAULT_PORT);
+            stream.WriteLine("/l:listeners\t Specifies the number of connection listeners (default {0} per CPU)", DEFAULT_LISTENERS_PER_CPU);
             stream.WriteLine("/f          \t Causes the endpoint to always return the 500 network response code.");
 
-            System.Environment.Exit(exitCode);
+            Environment.Exit(exitCode);
         }
 
-        static int parsePort(string portString)
+        static int ParsePort(string portString)
         {
-            int port = -1;
-            if (!int.TryParse(portString, out port) || port < minPort || port > maxPort)
+            int port;
+            if (!int.TryParse(portString, out port) || port < MIN_PORT || port > MAX_PORT)
             {
                 Console.WriteLine("Invalid port specified.");
-                System.Environment.Exit(1);
+                Environment.Exit(1);
             }
+
             return port;
         }
 
-        static int parseListeners(string listenersString)
+        static int ParseListeners(string listenersString)
         {
-            int listeners = -1;
+            int listeners;
             if (!int.TryParse(listenersString, out listeners) || listeners < 1)
             {
                 Console.WriteLine("Invalid number of listeners specified.");
-                System.Environment.Exit(1);
+                Environment.Exit(1);
             }
+
             return listeners;
         }
 
-        private async static Task<string> mainAsync(int port, int listeners, bool fail, bool perf)
+        private async static Task<bool> MainAsync(int port, int listeners, bool fail, bool perf)
         {
             try
             {
@@ -105,7 +107,7 @@ namespace Test_Endpoint
                 Environment.Exit(1);
             }
 
-            return "finished";
+            return true;
         }
     }
 }

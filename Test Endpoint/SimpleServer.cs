@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2013 PreEmptive Solutions; All Right Reserved, http://www.preemptive.com/
+﻿// Copyright (c) 2014 PreEmptive Solutions; All Right Reserved, http://www.preemptive.com/
 //
 // This source is subject to the Microsoft Public License (MS-PL).
 // Please see the License.txt file for more information.
@@ -10,61 +10,59 @@
 // PARTICULAR PURPOSE.
 
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Web;
-using System.Text;
 using System.Threading;
 using System.Xml;
 using System.Net;
 using System.Threading.Tasks;
 
-#pragma warning disable 4014
 namespace Test_Endpoint
 {
     public class SimpleServer
     {
-        private string Subdir = "received";
+        private const string SUBDIR = "received";
 
-        private HttpListener Listener = new HttpListener();
-        private int Port;
-        private int ListenerCount;
+        private readonly HttpListener listener;
+        private readonly int port;
+        private readonly int listenerCount;
 
-        private bool AlwaysFail;
-        private bool PerfMode;
+        private readonly bool alwaysFail;
+        private readonly bool perfMode;
 
         public SimpleServer(int port, int listenerCount, bool alwaysFail, bool perfMode)
         {
-            Port = port;
-            ListenerCount = listenerCount;
-            Listener.Prefixes.Add(string.Format("http://+:{0}/", Port));
+            this.port = port;
+            this.listenerCount = listenerCount;
+            listener = new HttpListener();
+            listener.Prefixes.Add(string.Format("http://+:{0}/", this.port));
 
-            AlwaysFail = alwaysFail;
-            PerfMode = perfMode;
+            this.alwaysFail = alwaysFail;
+            this.perfMode = perfMode;
 
-            Directory.CreateDirectory(Subdir);
+            Directory.CreateDirectory(SUBDIR);
         }
 
         public async Task Start()
         {
-            Listener.Start();
-            Console.WriteLine("Listening on port {0}", Port);
+            listener.Start();
+            Console.WriteLine("Listening on port {0}", port);
 
-            var semaphore = new Semaphore(ListenerCount, ListenerCount);
+            var semaphore = new Semaphore(listenerCount, listenerCount);
             while (true)
             {
                 semaphore.WaitOne();
 
-                var context = await Listener.GetContextAsync();
+                var context = await listener.GetContextAsync();
                 semaphore.Release();
 
-                Task.Factory.StartNew(() => handler(context));
+                Task.Factory.StartNew(() => Handler(context));
             }
         }
 
-        private async void handler(HttpListenerContext listenerContext)
+        private async void Handler(HttpListenerContext listenerContext)
         {
-            string error = null;
+            string error;
             try
             {
                 HttpListenerRequest request = listenerContext.Request;
@@ -72,16 +70,16 @@ namespace Test_Endpoint
                 {
                     using (var inputStream = request.InputStream)
                     {
-                        using (StreamReader reader = new StreamReader(inputStream, request.ContentEncoding))
+                        using (var reader = new StreamReader(inputStream, request.ContentEncoding))
                         {
-                            error = await logRequest(request, await reader.ReadToEndAsync());
+                            error = await LogRequest(request, await reader.ReadToEndAsync());
                         }
                     }
                 }
                 else
                 {
                     Console.Error.WriteLineAsync("Warning: Request has no entity body");
-                    error = await logRequest(request, "");
+                    error = await LogRequest(request, "");
                 }
             }
             catch (Exception e)
@@ -91,7 +89,7 @@ namespace Test_Endpoint
             }
             
             HttpListenerResponse response = listenerContext.Response;
-            if (AlwaysFail || error != null)
+            if (alwaysFail || error != null)
             {
                 if (error != null)
                 {
@@ -109,11 +107,11 @@ namespace Test_Endpoint
             response.Close();
         }
 
-        private async Task<string> logRequest(HttpListenerRequest request, String body)
+        private async Task<string> LogRequest(HttpListenerRequest request, String body)
         {
-            string subdirToUse = Subdir;
+            string subdirToUse = SUBDIR;
             string id;
-            if (PerfMode)
+            if (perfMode)
             {
                 id = Guid.NewGuid().ToString();
                 subdirToUse = string.Format("{0}\\{1}", subdirToUse, id.Substring(0, 3));
@@ -121,11 +119,11 @@ namespace Test_Endpoint
             }
             else
             {
-                id = findId(body);
+                id = FindId(body);
             }
             
             var filename = string.Format("{0}\\{1}.txt", subdirToUse, id);
-            if (!PerfMode)
+            if (!perfMode)
             {
                 int dupCount = 0;
                 while (File.Exists(filename))
@@ -152,19 +150,17 @@ namespace Test_Endpoint
                 await writer.WriteLineAsync(body.TrimEnd(new char[] { '\n' }));
             }
 
-            Console.WriteLine(string.Format("Received batch / envelope: {0}", id));
+            Console.WriteLine("Received batch / envelope: {0}", id);
 
             if (id == null)
             {
                 return "Unable to find message ID; file will be named \".txt\"";
             }
-            else
-            {
-                return null;
-            }
+
+            return null;
         }
 
-        private static string findId(String body)
+        private static string FindId(String body)
         {
             // Parses the JSON data sent by the 1.0.1 Javascript API
             if (body.StartsWith("data="))
@@ -173,34 +169,31 @@ namespace Test_Endpoint
                 result = result.Replace(" ", "");
 
                 const int GUIDLength = 36;
+
                 return result.Substring(result.IndexOf("id\":\"") + 5, GUIDLength);
             }
-            else
+
+            var doc = new XmlDocument();
+            doc.LoadXml(body);
+
+            // looks for a message tag with an id attribute sent by the API (e.g. the .NET API)
+            var idNode = doc.SelectSingleNode("messages[@id]");
+            if (idNode != null)
             {
-                var doc = new XmlDocument();
-                doc.LoadXml(body);
+                return idNode.Attributes["id"].Value;
+            }
 
-                // looks for a message tag with an id attribute sent by the API (e.g. the .NET API)
-                var idNode = doc.SelectSingleNode("messages[@id]");
-                if (idNode != null)
-                {
-                    return idNode.Attributes["id"].Value;
-                }
-                else
-                {
-                    // looks for an Id tag sent by the API (e.g. the SOAP message sent by the injected API)
-                    var nodes = doc.SelectNodes("//*");
+            // looks for an Id tag sent by the API (e.g. the SOAP message sent by the injected API)
+            var nodes = doc.SelectNodes("//*");
 
-                    if (nodes != null)
+            if (nodes != null)
+            {
+                foreach (var node in nodes)
+                {
+                    var xmlNode = node as XmlNode;
+                    if (xmlNode != null && xmlNode.Name == "Id")
                     {
-                        foreach (var node in nodes)
-                        {
-                            var xmlNode = node as XmlNode;
-                            if (xmlNode != null && xmlNode.Name == "Id")
-                            {
-                                return xmlNode.InnerText;
-                            }
-                        }
+                        return xmlNode.InnerText;
                     }
                 }
             }
