@@ -7,6 +7,9 @@ function ZipFiles( $zipfilename, $sourcedir )
 }
 
 $startdir = (Get-Location).Path
+$deploymentDir = "\\gkar\data\RI APIs\PA Endpoint"
+$zipFileName = "pa-test-endpoint.zip"
+$timestamp = Get-Date -Format yyyy-MM-dd-HH-mm
 
 Set-Location $startdir
 
@@ -25,5 +28,10 @@ copy-item "..\Test Endpoint\bin\Release\endpoint.exe" "staging\" -ErrorAction St
 copy-item "..\README.md" "staging\" -ErrorAction Stop
 copy-item "..\License.txt" "staging\" -ErrorAction Stop
 
+$version = [System.Diagnostics.FileVersionInfo]::GetVersionInfo("..\Test Endpoint\bin\Release\endpoint.exe").FileVersion
 
 ZipFiles "$startdir\pa-test-endpoint.zip" "$startdir\staging\" 
+
+$thisdeployment = "$deploymentdir\$version\$timestamp"
+mkdir $thisdeployment
+Copy-Item "$zipFileName" $thisdeployment -ErrorAction Stop
