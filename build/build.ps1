@@ -1,4 +1,3 @@
-
 function ZipFiles( $zipfilename, $sourcedir )
 {
     [Reflection.Assembly]::LoadWithPartialName( "System.IO.Compression.FileSystem" )
@@ -8,6 +7,7 @@ function ZipFiles( $zipfilename, $sourcedir )
 
 $startdir = (Get-Location).Path
 $deploymentDir = "\\gkar\data\RI APIs\PA Endpoint"
+$exeName = "endpoint.exe"
 $zipFileName = "pa-test-endpoint.zip"
 $timestamp = Get-Date -Format yyyy-MM-dd-HH-mm
 
@@ -15,22 +15,23 @@ Set-Location $startdir
 
 # package into a zipfile
 
-if((test-path "staging" -pathtype container)) {
+if((test-path "staging" -pathtype container)) 
+{
 	Remove-Item -Recurse -Force "staging" -ErrorAction Stop
 }
-if(test-path "$startdir\pa-test-endpoint.zip")
+if(test-path "$startdir\$zipFileName")
 {
-    Remove-Item "$startdir\pa-test-endpoint.zip"
+    Remove-Item "$startdir\$zipFileName"
 }
 
 mkdir "staging"
-copy-item "..\Test Endpoint\bin\Release\endpoint.exe" "staging\" -ErrorAction Stop
+copy-item "..\Test Endpoint\bin\Release\$exeName" "staging\" -ErrorAction Stop
 copy-item "..\README.md" "staging\" -ErrorAction Stop
 copy-item "..\License.txt" "staging\" -ErrorAction Stop
 
-$version = [System.Diagnostics.FileVersionInfo]::GetVersionInfo("..\Test Endpoint\bin\Release\endpoint.exe").FileVersion
+$version = [System.Diagnostics.FileVersionInfo]::GetVersionInfo("staging\$exeName").FileVersion
 
-ZipFiles "$startdir\pa-test-endpoint.zip" "$startdir\staging\" 
+ZipFiles "$startdir\$zipFileName" "$startdir\staging\" 
 
 $thisdeployment = "$deploymentdir\$version\$timestamp"
 mkdir $thisdeployment
