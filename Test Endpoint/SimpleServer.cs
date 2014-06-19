@@ -17,7 +17,6 @@ using System.Xml;
 using System.Net;
 using System.Threading.Tasks;
 
-#pragma warning disable 4014
 namespace Test_Endpoint
 {
     public class SimpleServer
@@ -57,7 +56,7 @@ namespace Test_Endpoint
                 var context = await listener.GetContextAsync();
                 semaphore.Release();
 
-                Task.Factory.StartNew(() => Handler(context));
+                await Task.Factory.StartNew(() => Handler(context));
             }
         }
 
@@ -79,13 +78,13 @@ namespace Test_Endpoint
                 }
                 else
                 {
-                    Console.Error.WriteLineAsync("Warning: Request has no entity body");
+                    await Console.Error.WriteLineAsync("Warning: Request has no entity body");
                     error = await LogRequest(request, "");
                 }
             }
             catch (Exception e)
             {
-                Console.Error.WriteLineAsync(e.ToString());
+                Console.Error.WriteLine(e.ToString());
                 error = e.Message;
             }
             
@@ -94,8 +93,9 @@ namespace Test_Endpoint
             {
                 if (error != null)
                 {
-                    Console.Error.WriteLineAsync(error);
+                    await Console.Error.WriteLineAsync(error);
                 }
+
                 response.StatusCode = 500;
                 response.StatusDescription = string.Format("Internal Server Error: {0}", error);
             }
@@ -104,6 +104,7 @@ namespace Test_Endpoint
                 response.StatusCode = 204;
                 response.StatusDescription = "No Content";
             }
+
             response.Headers.Set("Connection", "close");
             response.Close();
         }
@@ -112,6 +113,7 @@ namespace Test_Endpoint
         {
             string subdirToUse = SUBDIR;
             string id;
+
             if (perfMode)
             {
                 id = Guid.NewGuid().ToString();
@@ -129,7 +131,7 @@ namespace Test_Endpoint
                 int dupCount = 0;
                 while (File.Exists(filename))
                 {
-                    Console.Error.WriteLineAsync(string.Format("Warning: file already exists with id: {0}", id));
+                    await Console.Error.WriteLineAsync(string.Format("Warning: file already exists with id: {0}", id));
                     filename = string.Format("{0}\\{1}.{2}.txt", subdirToUse, id, ++dupCount);
                 }
             }
@@ -141,9 +143,13 @@ namespace Test_Endpoint
                 for (int i = 0; i < request.Headers.Count; i++)
                 {
                     string header = request.Headers.GetKey(i);
-                    foreach (string value in request.Headers.GetValues(i))
+                    string[] headers = request.Headers.GetValues(i);
+                    if (headers != null)
                     {
-                        await writer.WriteLineAsync(string.Format("{0}: {1}", header, value));
+                        foreach (string value in headers)
+                        {
+                            await writer.WriteLineAsync(string.Format("{0}: {1}", header, value));
+                        }
                     }
                 }
 
@@ -166,12 +172,16 @@ namespace Test_Endpoint
             // Parses the JSON data sent by the 1.0.1 Javascript API
             if (body.StartsWith("data="))
             {
-                var result = HttpUtility.UrlDecode(body);
-                result = result.Replace(" ", "");
+                string result = HttpUtility.UrlDecode(body);
 
-                const int GUIDLength = 36;
+                if (result != null)
+                {
+                    result = result.Replace(" ", "");
 
-                return result.Substring(result.IndexOf("id\":\"") + 5, GUIDLength);
+                    const int GUIDLength = 36;
+
+                    return result.Substring(result.IndexOf("id\":\"") + 5, GUIDLength);
+                }
             }
 
             var doc = new XmlDocument();
@@ -179,7 +189,7 @@ namespace Test_Endpoint
 
             // looks for a message tag with an id attribute sent by the API (e.g. the .NET API)
             var idNode = doc.SelectSingleNode("messages[@id]");
-            if (idNode != null)
+            if (idNode != null && idNode.Attributes != null)
             {
                 return idNode.Attributes["id"].Value;
             }
