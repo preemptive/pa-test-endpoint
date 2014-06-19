@@ -2,7 +2,7 @@
 
 This is a simple endpoint for testing PreEmptive Analytics message transmission. The messages are captured and saved to disk in a `received` subdirectory of the current working directory. A separate file is created for each envelope received, named based on the envelope ID. 
 
-Microsoft .NET 4.0 or greater is required for this application.
+Microsoft .NET 4.5 or greater is required for this application.
 
 To compile, open the pa-test-endpoint.sln file in Visual Studio and build the solution under the Release configuration.
 
