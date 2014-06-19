@@ -5,7 +5,7 @@ function ZipFiles( $zipfilename, $sourcedir )
     [System.IO.Compression.ZipFile]::CreateFromDirectory( $sourcedir, $zipfilename, $compressionLevel, $false )
 }
 
-$startdir = (Get-Location).Path
+$startdir = $PSScriptRoot
 $deploymentDir = "\\gkar\data\RI APIs\PA Endpoint"
 $exeName = "endpoint.exe"
 $zipFileName = "pa-test-endpoint.zip"
@@ -29,7 +29,7 @@ copy-item "..\Test Endpoint\bin\Release\$exeName" "staging\" -ErrorAction Stop
 copy-item "..\README.md" "staging\" -ErrorAction Stop
 copy-item "..\License.txt" "staging\" -ErrorAction Stop
 
-$version = [System.Diagnostics.FileVersionInfo]::GetVersionInfo("staging\$exeName").FileVersion
+$version = (Get-Command .\staging\$exeName).FileVersionInfo.FileVersion
 
 ZipFiles "$startdir\$zipFileName" "$startdir\staging\" 
 
