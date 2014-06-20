@@ -23,7 +23,6 @@ namespace Test_Endpoint
     {
         private const string SUBDIR = "received";
 
-        private readonly HttpListener listener;
         private readonly int port;
         private readonly int listenerCount;
 
@@ -34,8 +33,6 @@ namespace Test_Endpoint
         {
             this.port = port;
             this.listenerCount = listenerCount;
-            listener = new HttpListener();
-            listener.Prefixes.Add(string.Format("http://+:{0}/", this.port));
 
             this.alwaysFail = alwaysFail;
             this.perfMode = perfMode;
@@ -45,18 +42,22 @@ namespace Test_Endpoint
 
         public async Task Start()
         {
-            listener.Start();
-            Console.WriteLine("Listening on port {0}", port);
-
-            var semaphore = new Semaphore(listenerCount, listenerCount);
-            while (true)
+            using (var listener = new HttpListener())
             {
-                semaphore.WaitOne();
+                listener.Prefixes.Add(string.Format("http://+:{0}/", this.port));
+                listener.Start();
+                Console.WriteLine("Listening on port {0}", port);
 
-                var context = await listener.GetContextAsync();
-                semaphore.Release();
+                var semaphore = new Semaphore(listenerCount, listenerCount);
+                while (true)
+                {
+                    semaphore.WaitOne();
 
-                await Task.Factory.StartNew(() => Handler(context));
+                    var context = await listener.GetContextAsync();
+                    semaphore.Release();
+
+                    await Task.Factory.StartNew(() => Handler(context));
+                }
             }
         }
 
@@ -106,7 +107,15 @@ namespace Test_Endpoint
             }
 
             response.Headers.Set("Connection", "close");
-            response.Close();
+
+            try
+            {
+                response.Close();
+            }
+            catch (Exception e)
+            {
+                Console.Error.WriteLine(e.ToString());
+            }
         }
 
         private async Task<string> LogRequest(HttpListenerRequest request, String body)
@@ -154,7 +163,7 @@ namespace Test_Endpoint
                 }
 
                 await writer.WriteLineAsync();
-                await writer.WriteLineAsync(body.TrimEnd(new char[] { '\n' }));
+                await writer.WriteLineAsync(body.TrimEnd(new[] { '\n' }));
             }
 
             Console.WriteLine("Received batch / envelope: {0}", id);
