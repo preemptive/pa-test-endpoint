@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2013 PreEmptive Solutions; All Right Reserved, http://www.preemptive.com/
+﻿// Copyright (c) 2014 PreEmptive Solutions; All Right Reserved, http://www.preemptive.com/
 //
 // This source is subject to the Microsoft Public License (MS-PL).
 // Please see the License.txt file for more information.
@@ -10,176 +10,215 @@
 // PARTICULAR PURPOSE.
 
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Web;
-using System.Text;
 using System.Threading;
 using System.Xml;
+using System.Net;
+using System.Threading.Tasks;
 
 namespace Test_Endpoint
 {
-    public class SimpleServer : IDisposable
+    public class SimpleServer
     {
-        private HttpServer Server;
+        private const string SUBDIR = "received";
 
-        public string EndPoint
+        private readonly int port;
+        private readonly int listenerCount;
+
+        private readonly bool alwaysFail;
+        private readonly bool perfMode;
+
+        public SimpleServer(int port, int listenerCount, bool alwaysFail, bool perfMode)
         {
-            get { return string.Format("{0}:{1}", Host, Server.Port); }
+            this.port = port;
+            this.listenerCount = listenerCount;
+
+            this.alwaysFail = alwaysFail;
+            this.perfMode = perfMode;
+
+            Directory.CreateDirectory(SUBDIR);
         }
 
-        private string Host;
-
-        /// <summary>
-        /// If ShouldFail = true, then server will return 500
-        /// </summary>
-        public bool ShouldFail { get; private set; }
-
-        public string RecievedData
+        public async Task Start()
         {
-            get
+            using (var listener = new HttpListener())
             {
-                lock (Received)
+                listener.Prefixes.Add(string.Format("http://+:{0}/", this.port));
+                listener.Start();
+                Console.WriteLine("Listening on port {0}", port);
+
+                var semaphore = new Semaphore(listenerCount, listenerCount);
+                while (true)
                 {
-                    return Received.ToString();
+                    semaphore.WaitOne();
+
+                    var context = await listener.GetContextAsync();
+                    semaphore.Release();
+
+                    await Task.Factory.StartNew(() => Handler(context));
                 }
             }
         }
 
-        private StringBuilder Received = new StringBuilder(500);
-
-        /// <summary>
-        /// Logs the given string to a file.
-        /// </summary>
-        /// <param name="toLog">The message to log.</param>
-        /// <param name="id"></param>
-        private void Log(string toLog, string id)
+        private async void Handler(HttpListenerContext listenerContext)
         {
+            string error;
             try
             {
-                using (var writer = new StreamWriter(string.Format("{0}\\{1}.txt",AppDomain.CurrentDomain.BaseDirectory, id), true))
+                HttpListenerRequest request = listenerContext.Request;
+                if (request.HasEntityBody)
                 {
-                    Console.WriteLine("Recieved message {0}", id);
-                    writer.WriteLine(toLog);
+                    using (var inputStream = request.InputStream)
+                    {
+                        using (var reader = new StreamReader(inputStream, request.ContentEncoding))
+                        {
+                            error = await LogRequest(request, await reader.ReadToEndAsync());
+                        }
+                    }
+                }
+                else
+                {
+                    await Console.Error.WriteLineAsync("Warning: Request has no entity body");
+                    error = await LogRequest(request, "");
                 }
             }
-            catch
+            catch (Exception e)
             {
+                Console.Error.WriteLine(e.ToString());
+                error = e.Message;
             }
-        }
+            
+            HttpListenerResponse response = listenerContext.Response;
+            if (alwaysFail || error != null)
+            {
+                if (error != null)
+                {
+                    await Console.Error.WriteLineAsync(error);
+                }
 
-        public List<KeyValuePair<string, string>> Headers { get; private set; }
+                response.StatusCode = 500;
+                response.StatusDescription = string.Format("Internal Server Error: {0}", error);
+            }
+            else
+            {
+                response.StatusCode = 204;
+                response.StatusDescription = "No Content";
+            }
 
-        /// <summary>
-        /// Constructs an HTTP server and binds it to the given
-        /// endpoint.
-        /// </summary>
-        /// <param name="host"></param>
-        /// <param name="port"></param>
-        /// <param name="shouldFail"></param>
-        public SimpleServer(string host, int port, bool shouldFail)
-        {
+            response.Headers.Set("Connection", "close");
+
             try
             {
-                Host = host;
+                response.Close();
+            }
+            catch (Exception e)
+            {
+                Console.Error.WriteLine(e.ToString());
+            }
+        }
 
-                Server = new HttpServer(host, port);
-                Headers = new List<KeyValuePair<string, string>>();
-                ShouldFail = shouldFail;
+        private async Task<string> LogRequest(HttpListenerRequest request, String body)
+        {
+            string subdirToUse = SUBDIR;
+            string id;
 
-                if (!Server.Running)
+            if (perfMode)
+            {
+                id = Guid.NewGuid().ToString();
+                subdirToUse = string.Format("{0}\\{1}", subdirToUse, id.Substring(0, 3));
+                Directory.CreateDirectory(subdirToUse);
+            }
+            else
+            {
+                id = FindId(body);
+            }
+            
+            var filename = string.Format("{0}\\{1}.txt", subdirToUse, id);
+            if (!perfMode)
+            {
+                int dupCount = 0;
+                while (File.Exists(filename))
                 {
-                    lock (Server)
-                    {
-                        if (!Server.Running)
-                        {
-                            var t = new Thread(() => Server.Start());
-                            t.Start();
-                            Server.Started.WaitOne();
+                    await Console.Error.WriteLineAsync(string.Format("Warning: file already exists with id: {0}", id));
+                    filename = string.Format("{0}\\{1}.{2}.txt", subdirToUse, id, ++dupCount);
+                }
+            }
 
-                            if (!Server.Running)
-                            {
-                                Console.WriteLine("Unable to start server.");
-                                Environment.Exit(1);
-                            }
+            using (var writer = new StreamWriter(filename))
+            {
+                await writer.WriteLineAsync(string.Format("{0} {1} HTTP/{2}", request.HttpMethod, request.RawUrl, request.ProtocolVersion));
+
+                for (int i = 0; i < request.Headers.Count; i++)
+                {
+                    string header = request.Headers.GetKey(i);
+                    string[] headers = request.Headers.GetValues(i);
+                    if (headers != null)
+                    {
+                        foreach (string value in headers)
+                        {
+                            await writer.WriteLineAsync(string.Format("{0}: {1}", header, value));
                         }
                     }
                 }
 
-                Server.Handlers.TryAdd("/", r =>
-                {
-                    try
-                    {
-                        const int GUIDLength = 36;
-
-                        // Parses the JSON data sent by the 1.0.1 Javascript API
-                        if (r.Data.StartsWith("data="))
-                        {
-                            var result = HttpUtility.UrlDecode(r.Data);
-                            result = result.Replace(" ", "");
-                            Log(r.FullPost, result.Substring(result.IndexOf("id\":\"") + 5, GUIDLength));
-                        }
-                        else
-                        {
-                            var doc = new XmlDocument();
-                            doc.LoadXml(r.Data);
-
-                            string id = "";
-
-                            // looks for a message tag with an id attribute sent by the API (e.g. the .NET API)
-                            var node = doc.SelectSingleNode("messages[@id]");
-
-                            if (node != null)
-                            {
-                                id = node.Attributes["id"].Value;
-                            }
-                            else
-                            {
-                                // looks for an Id tag sent by the API (e.g. the SOAP message sent by the injected API)
-                                var nodes = doc.SelectNodes("//*");
-
-                                if (nodes != null)
-                                {
-                                    foreach (var n in nodes)
-                                    {
-                                        var no = n as XmlNode;
-                                        if (no != null)
-                                        {
-                                            if (no.Name == "Id")
-                                            {
-                                                id = no.InnerText;
-                                                break;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            Log(r.FullPost, id);
-                        }
-                    }
-                    catch
-                    {
-                        
-                    }
-                    
-                    return ShouldFail ? 500 : 204;
-                });
+                await writer.WriteLineAsync();
+                await writer.WriteLineAsync(body.TrimEnd(new[] { '\n' }));
             }
-            catch
+
+            Console.WriteLine("Received batch / envelope: {0}", id);
+
+            if (id == null)
             {
-                Console.WriteLine("Unable to start server.");
-                Environment.Exit(1);
+                return "Unable to find message ID; file will be named \".txt\"";
             }
+
+            return null;
         }
 
-        /// <summary>
-        /// Terminates this HTTP server.
-        /// </summary>
-        public void Dispose()
+        private static string FindId(String body)
         {
-            Func<HttpRequest, int> trash;
-            Server.Handlers.TryRemove("/", out trash);
+            // Parses the JSON data sent by the 1.0.1 Javascript API
+            if (body.StartsWith("data="))
+            {
+                string result = HttpUtility.UrlDecode(body);
+
+                if (result != null)
+                {
+                    result = result.Replace(" ", "");
+
+                    const int GUIDLength = 36;
+
+                    return result.Substring(result.IndexOf("id\":\"") + 5, GUIDLength);
+                }
+            }
+
+            var doc = new XmlDocument();
+            doc.LoadXml(body);
+
+            // looks for a message tag with an id attribute sent by the API (e.g. the .NET API)
+            var idNode = doc.SelectSingleNode("messages[@id]");
+            if (idNode != null && idNode.Attributes != null)
+            {
+                return idNode.Attributes["id"].Value;
+            }
+
+            // looks for an Id tag sent by the API (e.g. the SOAP message sent by the injected API)
+            var nodes = doc.SelectNodes("//*");
+
+            if (nodes != null)
+            {
+                foreach (var node in nodes)
+                {
+                    var xmlNode = node as XmlNode;
+                    if (xmlNode != null && xmlNode.Name == "Id")
+                    {
+                        return xmlNode.InnerText;
+                    }
+                }
+            }
+
+            return null;
         }
     }
 }
