@@ -103,7 +103,10 @@ namespace Test_Endpoint
             {
                 Console.Error.WriteLine(e);
                 Console.Error.WriteLine();
-                Console.Error.WriteLine("Unable to start server. Is the port in use?");
+                Console.Error.WriteLine("Unable to start the server. Verify that the account has permissions to listen on the port, and that the port is not already in use.");
+                Console.Error.WriteLine();
+                Console.WriteLine( "For example, as an adminstrator, use this netsh command to allow non-adminstrators to listen on the port:");
+                Console.Error.WriteLine( "\tnetsh http add urlacl url=http://+:[your port]/ user=[account domain]\\[account username]");
                 Environment.Exit(1);
             }
 

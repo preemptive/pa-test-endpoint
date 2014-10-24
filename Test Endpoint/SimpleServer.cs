@@ -63,33 +63,48 @@ namespace Test_Endpoint
 
         private async void Handler(HttpListenerContext listenerContext)
         {
-            string error;
+            string error = null;
+            int responseStatus = 0;
+            string responseDescription = null;
+
             try
             {
                 HttpListenerRequest request = listenerContext.Request;
-                if (request.HasEntityBody)
+                if (request.HttpMethod == "POST") 
                 {
-                    using (var inputStream = request.InputStream)
+                    if (request.HasEntityBody)
                     {
-                        using (var reader = new StreamReader(inputStream, request.ContentEncoding))
+                        using (var inputStream = request.InputStream)
                         {
-                            error = await LogRequest(request, await reader.ReadToEndAsync());
+                            using (var reader = new StreamReader(inputStream, request.ContentEncoding))
+                            {
+                                error = await LogRequest(request, await reader.ReadToEndAsync());
+                            }
                         }
                     }
+                    else
+                    {
+                        await Console.Error.WriteLineAsync("Warning: POST has no entity body");
+                        error = await LogRequest(request, "");
+                    }
+                    responseStatus = 204;
+                    responseDescription = "No Content";
+
                 }
                 else
                 {
-                    await Console.Error.WriteLineAsync("Warning: Request has no entity body");
-                    error = await LogRequest(request, "");
+                    responseStatus = 405;
+                    responseDescription = "Method Not Supported";
                 }
             }
             catch (Exception e)
             {
-                Console.Error.WriteLine(e.ToString());
+                Console.Error.WriteLine(e.ToString());                
                 error = e.Message;
             }
-            
+
             HttpListenerResponse response = listenerContext.Response;
+            
             if (alwaysFail || error != null)
             {
                 if (error != null)
@@ -102,8 +117,14 @@ namespace Test_Endpoint
             }
             else
             {
-                response.StatusCode = 204;
-                response.StatusDescription = "No Content";
+                response.StatusCode = responseStatus;
+                response.StatusDescription = responseDescription;
+            }
+
+            // CORS support (for a "Simple Cross-Origin Request", allowing all origins).  See http://www.w3.org/TR/cors/
+            if (listenerContext.Request.Headers["Origin"] != null)
+            {
+                response.Headers.Set("Access-Control-Allow-Origin", "*");
             }
 
             response.Headers.Set("Connection", "close");
@@ -132,7 +153,13 @@ namespace Test_Endpoint
             else
             {
                 id = FindId(body);
+                if (id == null)
+                {
+                    id = Guid.NewGuid().ToString();
+                    await Console.Error.WriteLineAsync(string.Format("Warning: Unable to find message ID; setting file ID to {0}", id));
+                }
             }
+            
             
             var filename = string.Format("{0}\\{1}.txt", subdirToUse, id);
             if (!perfMode)
@@ -168,57 +195,72 @@ namespace Test_Endpoint
 
             Console.WriteLine("Received batch / envelope: {0}", id);
 
-            if (id == null)
+
+            return null;
+        }
+     
+        private static string FindId(String body)
+        {
+            // Parses the urlencoded JSON data sent by the 1.0.1 Javascript API
+            if (body.StartsWith("data="))
             {
-                return "Unable to find message ID; file will be named \".txt\"";
+                string result = HttpUtility.UrlDecode(body);
+                if (result != null)
+                {
+                    return FindIdFromJSON(result);
+                }
+
+            }
+            // Parses the JSON data sent by later versions of the JavaScript API
+            else if (body.StartsWith("{"))
+            {
+                return FindIdFromJSON(body);
+            }
+
+            try
+            {
+                var doc = new XmlDocument();
+                doc.LoadXml(body);
+
+                // looks for a message tag with an id attribute sent by the API (e.g. the .NET API)
+                var idNode = doc.SelectSingleNode("messages[@id]");
+                if (idNode != null && idNode.Attributes != null)
+                {
+                    return idNode.Attributes["id"].Value;
+                }
+
+                // looks for an Id tag sent by the API (e.g. the SOAP message sent by the injected API)
+                var nodes = doc.SelectNodes("//*");
+
+                if (nodes != null)
+                {
+                    foreach (var node in nodes)
+                    {
+                        var xmlNode = node as XmlNode;
+                        if (xmlNode != null && xmlNode.Name == "Id")
+                        {
+                            return xmlNode.InnerText;
+                        }
+                    }
+                }
+            }
+            catch (XmlException)
+            {
+                // Swallow XML parse errors and return null
             }
 
             return null;
         }
 
-        private static string FindId(String body)
+        private static string FindIdFromJSON(string body)
         {
-            // Parses the JSON data sent by the 1.0.1 Javascript API
-            if (body.StartsWith("data="))
-            {
-                string result = HttpUtility.UrlDecode(body);
+            
+            string result = body.Replace(" ", "");
 
-                if (result != null)
-                {
-                    result = result.Replace(" ", "");
+            const int GUIDLength = 36;
 
-                    const int GUIDLength = 36;
+            return result.Substring(result.IndexOf("id\":\"") + 5, GUIDLength);
 
-                    return result.Substring(result.IndexOf("id\":\"") + 5, GUIDLength);
-                }
-            }
-
-            var doc = new XmlDocument();
-            doc.LoadXml(body);
-
-            // looks for a message tag with an id attribute sent by the API (e.g. the .NET API)
-            var idNode = doc.SelectSingleNode("messages[@id]");
-            if (idNode != null && idNode.Attributes != null)
-            {
-                return idNode.Attributes["id"].Value;
-            }
-
-            // looks for an Id tag sent by the API (e.g. the SOAP message sent by the injected API)
-            var nodes = doc.SelectNodes("//*");
-
-            if (nodes != null)
-            {
-                foreach (var node in nodes)
-                {
-                    var xmlNode = node as XmlNode;
-                    if (xmlNode != null && xmlNode.Name == "Id")
-                    {
-                        return xmlNode.InnerText;
-                    }
-                }
-            }
-
-            return null;
         }
     }
 }
