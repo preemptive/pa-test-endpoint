@@ -10,6 +10,7 @@
 // PARTICULAR PURPOSE.
 
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Web;
 using System.Threading;
@@ -254,13 +255,33 @@ namespace Test_Endpoint
 
         private static string FindIdFromJSON(string body)
         {
-            
             string result = body.Replace(" ", "");
 
+            // Remove message array, to ensure we don't pick up the message ID as the envelope ID
+            var messagesStart = result.IndexOf("\"messages\":");
+            var messagesEnd = result.LastIndexOf(']');
+
+            if (messagesStart >= 0 && messagesEnd >= 0)
+            {
+                var length = messagesEnd - messagesStart + 1;
+                result = result.Remove(messagesStart, length);
+            }
+
+            // Remove app object, to ensure we don't pick up the application ID as the envelope ID
+            var appStart = result.IndexOf("\"app\":");
+            if (appStart >= 0)
+            {
+                var appEnd = result.IndexOf('}', appStart);
+                if (appEnd >= 0)
+                {
+                    var length = appEnd - appStart + 1;
+                    result = result.Remove(appStart, length);
+                }
+            }
+
             const int GUIDLength = 36;
-
-            return result.Substring(result.IndexOf("id\":\"") + 5, GUIDLength);
-
+            const string prefix = "\"id\":\"";
+            return result.Substring(result.IndexOf(prefix) + prefix.Length, GUIDLength);
         }
     }
 }
