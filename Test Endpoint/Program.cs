@@ -29,6 +29,8 @@ namespace Test_Endpoint
             int listeners = DEFAULT_LISTENERS_PER_CPU * Environment.ProcessorCount;
             bool fail = false;
             bool perf = false;
+            bool noWrite = false;
+            int slow = 0;
 
             var options = new OptionSet()
             {
@@ -36,6 +38,8 @@ namespace Test_Endpoint
                 { "p=", portString => port = ParsePort(portString) },
                 { "l=", listenersString => listeners = ParseListeners(listenersString) },
                 { "f", flag => fail = (flag != null) },
+                { "nowrite", flag => noWrite = (flag != null) },
+                { "slow=", slowString => slow = ParseSlow(slowString) },
                 { "perf", flag => perf = (flag != null) },
             };
 
@@ -46,7 +50,7 @@ namespace Test_Endpoint
             }
 
             //required to make async work from a console app
-            Task.WaitAll(MainAsync(port, listeners, fail, perf));
+            Task.WaitAll(MainAsync(port, listeners, fail, noWrite, slow, perf));
         }
 
         private static void DieUsage(int exitCode)
@@ -58,12 +62,15 @@ namespace Test_Endpoint
             }
             
             stream.WriteLine("USAGE:");
-            stream.WriteLine("endpoint.exe [/h] [/p:portnum] [/l:listeners] [/f]");
+            stream.WriteLine("endpoint.exe [/h] [/p:portnum] [/l:listeners] [/f] [/slow:secs] [/nowrite] [/perf]");
             stream.WriteLine();
             stream.WriteLine("/h          \t Prints this message.");
-            stream.WriteLine("/p:portnum  \t Specifies the port number to use (default {0}).", DEFAULT_PORT);
-            stream.WriteLine("/l:listeners\t Specifies the number of connection listeners (default {0} per CPU)", DEFAULT_LISTENERS_PER_CPU);
-            stream.WriteLine("/f          \t Causes the endpoint to always return the 500 network response code.");
+            stream.WriteLine("/p:portnum  \t Port number to listen on (default {0}).", DEFAULT_PORT);
+            stream.WriteLine("/l:listeners\t Number of connection listeners (default {0} per CPU).", DEFAULT_LISTENERS_PER_CPU);
+            stream.WriteLine("/f          \t Always return the 500 network response code.");
+            stream.WriteLine("/slow:secs  \t Wait <secs> seconds before each response to sender.");
+            stream.WriteLine("/nowrite    \t Don't save incoming envelopes (or check for duplicates).");
+            stream.WriteLine("/perf       \t Various changes to allow high throughput.");
 
             Environment.Exit(exitCode);
         }
@@ -73,7 +80,7 @@ namespace Test_Endpoint
             int port;
             if (!int.TryParse(portString, out port) || port < MIN_PORT || port > MAX_PORT)
             {
-                Console.WriteLine("Invalid port specified.");
+                Console.Error.WriteLine("Invalid port specified.");
                 Environment.Exit(1);
             }
 
@@ -85,19 +92,31 @@ namespace Test_Endpoint
             int listeners;
             if (!int.TryParse(listenersString, out listeners) || listeners < 1)
             {
-                Console.WriteLine("Invalid number of listeners specified.");
+                Console.Error.WriteLine("Invalid number of listeners specified.");
                 Environment.Exit(1);
             }
 
             return listeners;
         }
 
-        private async static Task<bool> MainAsync(int port, int listeners, bool fail, bool perf)
+        private static int ParseSlow(string slowString)
+        {
+            int slow;
+            if (!int.TryParse(slowString, out slow) || slow < 0)
+            {
+                Console.Error.WriteLine("Invalid slow value.");
+                Environment.Exit(1);
+            }
+
+            return slow;
+        }
+
+        private async static Task<bool> MainAsync(int port, int listeners, bool fail, bool noWrite, int slow, bool perf)
         {
             try
             {
                 //have to await so we can catch port-binding exceptions
-                await new SimpleServer(port, listeners, fail, perf).Start();
+                await new SimpleServer(port, listeners, fail, noWrite, slow, perf).Start();
             }
             catch (Exception e)
             {
@@ -105,7 +124,7 @@ namespace Test_Endpoint
                 Console.Error.WriteLine();
                 Console.Error.WriteLine("Unable to start the server. Verify that the account has permissions to listen on the port, and that the port is not already in use.");
                 Console.Error.WriteLine();
-                Console.WriteLine( "For example, as an adminstrator, use this netsh command to allow non-adminstrators to listen on the port:");
+                Console.Error.WriteLine("For example, as an adminstrator, use this netsh command to allow non-adminstrators to listen on the port:");
                 Console.Error.WriteLine( "\tnetsh http add urlacl url=http://+:[your port]/ user=[account domain]\\[account username]");
                 Environment.Exit(1);
             }

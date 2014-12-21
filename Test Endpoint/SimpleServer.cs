@@ -28,17 +28,24 @@ namespace Test_Endpoint
         private readonly int listenerCount;
 
         private readonly bool alwaysFail;
+        private readonly bool noWrite;
+        private readonly int slow;
         private readonly bool perfMode;
 
-        public SimpleServer(int port, int listenerCount, bool alwaysFail, bool perfMode)
+        public SimpleServer(int port, int listenerCount, bool alwaysFail, bool noWrite, int slow, bool perfMode)
         {
             this.port = port;
             this.listenerCount = listenerCount;
 
             this.alwaysFail = alwaysFail;
+            this.noWrite = noWrite;
+            this.slow = slow;
             this.perfMode = perfMode;
 
-            Directory.CreateDirectory(SUBDIR);
+            if (!noWrite)
+            {
+                Directory.CreateDirectory(SUBDIR);
+            }
         }
 
         public async Task Start()
@@ -70,6 +77,7 @@ namespace Test_Endpoint
 
             try
             {
+                string requestBody = null;
                 HttpListenerRequest request = listenerContext.Request;
                 if (request.HttpMethod == "POST") 
                 {
@@ -79,24 +87,30 @@ namespace Test_Endpoint
                         {
                             using (var reader = new StreamReader(inputStream, request.ContentEncoding))
                             {
-                                error = await LogRequest(request, await reader.ReadToEndAsync());
+                                requestBody = await reader.ReadToEndAsync();
                             }
                         }
                     }
                     else
                     {
                         await Console.Error.WriteLineAsync("Warning: POST has no entity body");
-                        error = await LogRequest(request, "");
+                        requestBody = "";
                     }
+
                     responseStatus = 204;
                     responseDescription = "No Content";
-
                 }
                 else
                 {
                     responseStatus = 405;
                     responseDescription = "Method Not Supported";
                 }
+
+                if (slow > 0)
+                {
+                    await Task.Delay(slow * 1000);
+                }
+                error = await LogRequest(request, requestBody);
             }
             catch (Exception e)
             {
@@ -149,7 +163,10 @@ namespace Test_Endpoint
             {
                 id = Guid.NewGuid().ToString();
                 subdirToUse = string.Format("{0}\\{1}", subdirToUse, id.Substring(0, 3));
-                Directory.CreateDirectory(subdirToUse);
+                if (!noWrite)
+                {
+                    Directory.CreateDirectory(subdirToUse);
+                }
             }
             else
             {
@@ -157,13 +174,13 @@ namespace Test_Endpoint
                 if (id == null)
                 {
                     id = Guid.NewGuid().ToString();
-                    await Console.Error.WriteLineAsync(string.Format("Warning: Unable to find message ID; setting file ID to {0}", id));
+                    await Console.Error.WriteLineAsync(string.Format("Warning: Unable to find message ID; using {0} instead", id));
                 }
             }
             
             
             var filename = string.Format("{0}\\{1}.txt", subdirToUse, id);
-            if (!perfMode)
+            if (!perfMode && !noWrite)
             {
                 int dupCount = 0;
                 while (File.Exists(filename))
@@ -173,29 +190,31 @@ namespace Test_Endpoint
                 }
             }
 
-            using (var writer = new StreamWriter(filename))
+            if (!noWrite)
             {
-                await writer.WriteLineAsync(string.Format("{0} {1} HTTP/{2}", request.HttpMethod, request.RawUrl, request.ProtocolVersion));
-
-                for (int i = 0; i < request.Headers.Count; i++)
+                using (var writer = new StreamWriter(filename))
                 {
-                    string header = request.Headers.GetKey(i);
-                    string[] headers = request.Headers.GetValues(i);
-                    if (headers != null)
+                    await writer.WriteLineAsync(string.Format("{0} {1} HTTP/{2}", request.HttpMethod, request.RawUrl, request.ProtocolVersion));
+
+                    for (int i = 0; i < request.Headers.Count; i++)
                     {
-                        foreach (string value in headers)
+                        string header = request.Headers.GetKey(i);
+                        string[] headers = request.Headers.GetValues(i);
+                        if (headers != null)
                         {
-                            await writer.WriteLineAsync(string.Format("{0}: {1}", header, value));
+                            foreach (string value in headers)
+                            {
+                                await writer.WriteLineAsync(string.Format("{0}: {1}", header, value));
+                            }
                         }
                     }
-                }
 
-                await writer.WriteLineAsync();
-                await writer.WriteLineAsync(body.TrimEnd(new[] { '\n' }));
+                    await writer.WriteLineAsync();
+                    await writer.WriteLineAsync(body.TrimEnd(new[] { '\n' }));
+                }
             }
 
             Console.WriteLine("Received batch / envelope: {0}", id);
-
 
             return null;
         }
