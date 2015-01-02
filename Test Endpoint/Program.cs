@@ -62,7 +62,8 @@ namespace Test_Endpoint
             }
             
             stream.WriteLine("USAGE:");
-            stream.WriteLine("endpoint.exe [/h] [/p:portnum] [/l:listeners] [/f] [/slow:secs] [/nowrite] [/perf]");
+            stream.WriteLine(" endpoint.exe [/h] [/p:portnum] [/l:listeners] [/f] " + Environment.NewLine +
+                             "              [/slow:secs] [/nowrite] [/perf]");
             stream.WriteLine();
             stream.WriteLine("/h          \t Prints this message.");
             stream.WriteLine("/p:portnum  \t Port number to listen on (default {0}).", DEFAULT_PORT);
