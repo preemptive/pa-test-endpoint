@@ -1,6 +1,6 @@
 # pa-test-endpoint
 
-This is a simple endpoint for testing [PreEmptive Analytics](http://www.preemptive.com/pa) message transmission from an instrumented application. The messages received are stored on-disk in their raw formats.
+This is a simple endpoint for testing [PreEmptive Analytics][] message transmission from an instrumented application. The messages received are stored on-disk in their raw formats.
 
 Microsoft .NET 4.5 or greater is required for this application.
 
@@ -19,9 +19,11 @@ Microsoft .NET 4.5 or greater is required for this application.
 - `/p:portnum` - Port number to listen on (default `8080`).
 - `/l:listeners` - Number of connection listeners (default 4 per CPU).
 - `/f` - Always return the 500 network response code.
-- `/slow:secs` - Wait &lt;secs&gt; seconds before each response to sender.
+- `/slow:secs` - Wait [secs] seconds before each response to sender.
 - `/nowrite` - Don't save incoming envelopes (or check for duplicates).
 - `/perf` - Various changes to allow high throughput.
 
 ## License   
 The pa-test-endpoint is licensed under MS-PL; see `License.txt` for details.
+
+[PreEmptive Analytics]: http://www.preemptive.com/pa
