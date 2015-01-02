@@ -5,5 +5,3 @@ Test Endpoint.sln.DotSettings.user
 Test Endpoint/bin/*
 Test Endpoint/obj/*
 Test Endpoint/Test Endpoint.csproj.user
-build/staging/*
-build/pa-test-endpoint.zip
