@@ -110,7 +110,10 @@ namespace Test_Endpoint
                 {
                     await Task.Delay(slow * 1000);
                 }
-                error = await LogRequest(request, requestBody);
+                if (requestBody != null)
+                {
+                    error = await LogRequest(request, requestBody);
+                }
             }
             catch (Exception e)
             {
