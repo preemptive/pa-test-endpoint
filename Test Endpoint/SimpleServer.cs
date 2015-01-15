@@ -72,13 +72,16 @@ namespace Test_Endpoint
         private async void Handler(HttpListenerContext listenerContext)
         {
             string error = null;
-            int responseStatus = 0;
-            string responseDescription = null;
+            int responseStatus = 200;
+            string responseDescription = "OK";
+
+            HttpListenerRequest request = listenerContext.Request;
+            HttpListenerResponse response = listenerContext.Response;
 
             try
             {
                 string requestBody = null;
-                HttpListenerRequest request = listenerContext.Request;
+
                 if (request.HttpMethod == "POST") 
                 {
                     if (request.HasEntityBody)
@@ -100,7 +103,24 @@ namespace Test_Endpoint
                     responseStatus = 204;
                     responseDescription = "No Content";
                 }
-                else
+                else if (request.HttpMethod == "OPTIONS")
+                {
+                    if (request.Headers["Origin"] != null)
+                    {
+                        response.Headers.Set("Access-Control-Allow-Origin", "*");
+                    }
+                    
+                    if (request.Headers["Access-Control-Request-Headers"] != null)
+                    {
+                        response.Headers.Set("Access-Control-Allow-Headers", request.Headers["Access-Control-Request-Headers"]);   
+                    }
+
+                    if (request.Headers["Access-Control-Request-Method"] != null)
+                    {
+                        response.Headers.Set("Access-Control-Allow-Methods", "POST, OPTIONS");
+                    }
+                }
+                else 
                 {
                     responseStatus = 405;
                     responseDescription = "Method Not Supported";
@@ -120,8 +140,6 @@ namespace Test_Endpoint
                 Console.Error.WriteLine(e.ToString());                
                 error = e.Message;
             }
-
-            HttpListenerResponse response = listenerContext.Response;
             
             if (alwaysFail || error != null)
             {
