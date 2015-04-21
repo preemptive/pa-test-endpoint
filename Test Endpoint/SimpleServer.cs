@@ -4,7 +4,7 @@
 // Please see the License.txt file for more information.
 // All other rights reserved.
 //
-// THIS CODE AND INFORMATION ARE PROVIDED "AS IS" WITHOUT WARRANTY OF ANY 
+// THIS CODE AND INFORMATION ARE PROVIDED "AS IS" WITHOUT WARRANTY OF ANY
 // KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
 // IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
 // PARTICULAR PURPOSE.
@@ -82,7 +82,7 @@ namespace Test_Endpoint
             {
                 string requestBody = null;
 
-                if (request.HttpMethod == "POST") 
+                if (request.HttpMethod == "POST")
                 {
                     if (request.HasEntityBody)
                     {
@@ -109,10 +109,10 @@ namespace Test_Endpoint
                     {
                         response.Headers.Set("Access-Control-Allow-Origin", "*");
                     }
-                    
+
                     if (request.Headers["Access-Control-Request-Headers"] != null)
                     {
-                        response.Headers.Set("Access-Control-Allow-Headers", request.Headers["Access-Control-Request-Headers"]);   
+                        response.Headers.Set("Access-Control-Allow-Headers", request.Headers["Access-Control-Request-Headers"]);
                     }
 
                     if (request.Headers["Access-Control-Request-Method"] != null)
@@ -120,7 +120,7 @@ namespace Test_Endpoint
                         response.Headers.Set("Access-Control-Allow-Methods", "POST, OPTIONS");
                     }
                 }
-                else 
+                else
                 {
                     responseStatus = 405;
                     responseDescription = "Method Not Supported";
@@ -137,10 +137,10 @@ namespace Test_Endpoint
             }
             catch (Exception e)
             {
-                Console.Error.WriteLine(e.ToString());                
+                Console.Error.WriteLine(e.ToString());
                 error = e.Message;
             }
-            
+
             if (alwaysFail || error != null)
             {
                 if (error != null)
@@ -183,7 +183,7 @@ namespace Test_Endpoint
             if (perfMode)
             {
                 id = Guid.NewGuid().ToString();
-                subdirToUse = string.Format("{0}\\{1}", subdirToUse, id.Substring(0, 3));
+                subdirToUse = Path.Combine(subdirToUse, id.Substring(0, 3));
                 if (!noWrite)
                 {
                     Directory.CreateDirectory(subdirToUse);
@@ -198,16 +198,16 @@ namespace Test_Endpoint
                     await Console.Error.WriteLineAsync(string.Format("Warning: Unable to find message ID; using {0} instead", id));
                 }
             }
-            
-            
-            var filename = string.Format("{0}\\{1}.txt", subdirToUse, id);
+
+
+            var filename = Path.Combine(subdirToUse, id + ".txt");
             if (!perfMode && !noWrite)
             {
                 int dupCount = 0;
                 while (File.Exists(filename))
                 {
                     await Console.Error.WriteLineAsync(string.Format("Warning: file already exists with id: {0}", id));
-                    filename = string.Format("{0}\\{1}.{2}.txt", subdirToUse, id, ++dupCount);
+                    filename = Path.Combine(subdirToUse, id + "." + (++dupCount) + ".txt");
                 }
             }
 
@@ -239,7 +239,7 @@ namespace Test_Endpoint
 
             return null;
         }
-     
+
         private static string FindId(String body)
         {
             // Parses the urlencoded JSON data sent by the 1.0.1 Javascript API
