@@ -4,7 +4,7 @@
 // Please see the License.txt file for more information.
 // All other rights reserved.
 //
-// THIS CODE AND INFORMATION ARE PROVIDED "AS IS" WITHOUT WARRANTY OF ANY 
+// THIS CODE AND INFORMATION ARE PROVIDED "AS IS" WITHOUT WARRANTY OF ANY
 // KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
 // IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
 // PARTICULAR PURPOSE.
@@ -31,6 +31,7 @@ namespace Test_Endpoint
             bool perf = false;
             bool noWrite = false;
             int slow = 0;
+            long maxLength = -1;
 
             var options = new OptionSet()
             {
@@ -41,6 +42,7 @@ namespace Test_Endpoint
                 { "nowrite", flag => noWrite = (flag != null) },
                 { "slow=", slowString => slow = ParseSlow(slowString) },
                 { "perf", flag => perf = (flag != null) },
+                { "max-length=", maxLengthString => maxLength = ParseMaxLength(maxLengthString) }
             };
 
             List<string> extraArgs = options.Parse(args);
@@ -50,7 +52,7 @@ namespace Test_Endpoint
             }
 
             //required to make async work from a console app
-            Task.WaitAll(MainAsync(port, listeners, fail, noWrite, slow, perf));
+            Task.WaitAll(MainAsync(port, listeners, fail, noWrite, slow, perf, maxLength));
         }
 
         private static void DieUsage(int exitCode)
@@ -60,18 +62,19 @@ namespace Test_Endpoint
             {
                 stream = Console.Error;
             }
-            
+
             stream.WriteLine("USAGE:");
             stream.WriteLine(" endpoint.exe [/h] [/p:portnum] [/l:listeners] [/f] " + Environment.NewLine +
                              "              [/slow:secs] [/nowrite] [/perf]");
             stream.WriteLine();
-            stream.WriteLine("/h          \t Prints this message.");
-            stream.WriteLine("/p:portnum  \t Port number to listen on (default {0}).", DEFAULT_PORT);
-            stream.WriteLine("/l:listeners\t Number of connection listeners (default {0} per CPU).", DEFAULT_LISTENERS_PER_CPU);
-            stream.WriteLine("/f          \t Always return the 500 network response code.");
-            stream.WriteLine("/slow:secs  \t Wait <secs> seconds before each response to sender.");
-            stream.WriteLine("/nowrite    \t Don't save incoming envelopes (or check for duplicates).");
-            stream.WriteLine("/perf       \t Various changes to allow high throughput.");
+            stream.WriteLine("/h              \t Prints this message.");
+            stream.WriteLine("/p:portnum      \t Port number to listen on (default {0}).", DEFAULT_PORT);
+            stream.WriteLine("/l:listeners    \t Number of connection listeners (default {0} per CPU).", DEFAULT_LISTENERS_PER_CPU);
+            stream.WriteLine("/f              \t Always return the 500 network response code.");
+            stream.WriteLine("/slow:secs      \t Wait <secs> seconds before each response to sender.");
+            stream.WriteLine("/nowrite        \t Don't save incoming envelopes (or check for duplicates).");
+            stream.WriteLine("/perf           \t Various changes to allow high throughput.");
+            stream.WriteLine("/max-length:num \t Specify max size in bytes of requests to accept.");
 
             Environment.Exit(exitCode);
         }
@@ -100,6 +103,17 @@ namespace Test_Endpoint
             return listeners;
         }
 
+        static long ParseMaxLength(string maxLengthString)
+        {
+          long maxLength;
+          if(!long.TryParse(maxLengthString, out maxLength) || maxLength < 0)
+          {
+            Console.Error.WriteLine("Invalid max request length specified.");
+            Environment.Exit(1);
+          }
+          return maxLength;
+        }
+
         private static int ParseSlow(string slowString)
         {
             int slow;
@@ -112,12 +126,12 @@ namespace Test_Endpoint
             return slow;
         }
 
-        private async static Task<bool> MainAsync(int port, int listeners, bool fail, bool noWrite, int slow, bool perf)
+        private async static Task<bool> MainAsync(int port, int listeners, bool fail, bool noWrite, int slow, bool perf, long maxLength)
         {
             try
             {
                 //have to await so we can catch port-binding exceptions
-                await new SimpleServer(port, listeners, fail, noWrite, slow, perf).Start();
+                await new SimpleServer(port, listeners, fail, noWrite, slow, perf, maxLength).Start();
             }
             catch (Exception e)
             {

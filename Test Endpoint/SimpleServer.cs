@@ -31,8 +31,9 @@ namespace Test_Endpoint
         private readonly bool noWrite;
         private readonly int slow;
         private readonly bool perfMode;
+        private readonly long maxRequestLength;
 
-        public SimpleServer(int port, int listenerCount, bool alwaysFail, bool noWrite, int slow, bool perfMode)
+        public SimpleServer(int port, int listenerCount, bool alwaysFail, bool noWrite, int slow, bool perfMode, long maxRequestLength)
         {
             this.port = port;
             this.listenerCount = listenerCount;
@@ -41,6 +42,7 @@ namespace Test_Endpoint
             this.noWrite = noWrite;
             this.slow = slow;
             this.perfMode = perfMode;
+            this.maxRequestLength = maxRequestLength;
 
             if (!noWrite)
             {
@@ -82,7 +84,13 @@ namespace Test_Endpoint
             {
                 string requestBody = null;
 
-                if (request.HttpMethod == "POST")
+                if(maxRequestLength > 0 && request.ContentLength64 > maxRequestLength)
+                {
+                  responseStatus = 413;
+                  responseDescription = "Request too large";
+                  await Console.Error.WriteLineAsync(string.Format("Rejecting message as too large: {0} > {1}", request.ContentLength64, maxRequestLength));
+                }
+                else if (request.HttpMethod == "POST")
                 {
                     if (request.HasEntityBody)
                     {
