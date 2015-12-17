@@ -9,7 +9,7 @@ using System.Runtime.InteropServices;
 
 [assembly: AssemblyProduct("PreEmptive Analytics Test Endpoint")]
 [assembly: AssemblyCompany("PreEmptive Solutions, LLC")]
-[assembly: AssemblyCopyright("Copyright © 2014 PreEmptive Solutions, LLC")]
+[assembly: AssemblyCopyright("Copyright © 2015 PreEmptive Solutions, LLC")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
