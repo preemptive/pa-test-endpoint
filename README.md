@@ -22,6 +22,7 @@ Microsoft .NET 4.5 or greater is required for this application.
 - `/slow:secs` - Wait [secs] seconds before each response to sender.
 - `/nowrite` - Don't save incoming envelopes (or check for duplicates).
 - `/perf` - Various changes to allow high throughput.
+- `/max-length:num` - Specify max size in bytes of requests to accept.
 
 ## License   
 The pa-test-endpoint is licensed under MS-PL; see `License.txt` for details.
